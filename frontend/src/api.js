@@ -14,6 +14,11 @@ export const searchRequests = (filters = {}) => {
     return requestJson(`/api/requests/search?${query.toString()}`);
 };
 export const getAdminDashboard = () => requestJson('/api/admin/dashboard');
+export const createReliefRequest = (reliefRequest) => requestJson('/api/requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reliefRequest),
+});
 export const approveVolunteer = (volunteerId) => requestJson(`/admin/volunteers/${encodeURIComponent(volunteerId)}/approve`, {
     method: 'POST',
 });
@@ -21,6 +26,9 @@ export const deployVolunteer = (volunteerId, reliefRequestId) => requestJson(`/a
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reliefRequestId }),
+});
+export const closeReliefRequest = (requestId) => requestJson(`/admin/requests/${encodeURIComponent(requestId)}/close`, {
+    method: 'POST',
 });
 export const registerVolunteer = (volunteer) => requestJson('/api/register', {
     method: 'POST',
