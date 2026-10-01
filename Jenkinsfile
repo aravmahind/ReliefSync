@@ -37,7 +37,7 @@ pipeline {
                 bat "docker stop ${CONTAINER_NAME} || exit 0"
                 bat "docker rm ${CONTAINER_NAME} || exit 0"
                 // host.docker.internal mule container Windows host varlya MongoDB la connect hoil
-                bat "docker run -d -p 3000:3000 -e MONGODB_URI=mongodb://host.docker.internal:27017/reliefsync --name ${CONTAINER_NAME} ${IMAGE_NAME}:latest"
+                bat "docker run -d -p 3000:5001 -e MONGODB_URI=mongodb://host.docker.internal:27017/reliefsync --name ${CONTAINER_NAME} ${IMAGE_NAME}:latest"
             }
         }
     }

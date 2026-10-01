@@ -14,7 +14,7 @@ RUN npm install
 COPY backend/ ./
 
 # Application port expose kara
-EXPOSE 3000
+EXPOSE 5001
 
 # App start command
 CMD ["npm", "start"]
