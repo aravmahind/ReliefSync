@@ -212,7 +212,7 @@ app.get('/{*splat}', (request, response) => {
 
 async function startServer() {
     await connectDatabase();
-    app.listen(port, () => {
+    app.listen(port, '0.0.0.0', () => {
         console.log(`ReliefSync is running at http://localhost:${port}`);
     });
 }
