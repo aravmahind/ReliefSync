@@ -8,6 +8,7 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:5001',
       '/admin/volunteers': 'http://localhost:5001',
+      '/admin/requests': 'http://localhost:5001',
     },
   },
 })

@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
-import { approveVolunteer, deployVolunteer, getAdminDashboard } from '../api';
+import { approveVolunteer, closeReliefRequest, createReliefRequest, deployVolunteer, getAdminDashboard } from '../api';
+
+const skills = ['Medical', 'Rescue', 'Food Distribution', 'First Aid'];
+const initialRequest = { title: '', location: '', skillRequired: '', urgency: 'Medium', volunteersNeeded: '1' };
 
 const AdminPage = () => {
     const [dashboard, setDashboard] = useState(null);
     const [assignments, setAssignments] = useState({});
+    const [requestValues, setRequestValues] = useState(initialRequest);
     const [notice, setNotice] = useState(null);
     const [error, setError] = useState('');
     const [busyVolunteerId, setBusyVolunteerId] = useState('');
+    const [busyRequestId, setBusyRequestId] = useState('');
+    const [creatingRequest, setCreatingRequest] = useState(false);
 
     const refreshDashboard = async () => {
         setDashboard(await getAdminDashboard());
@@ -35,6 +41,44 @@ const AdminPage = () => {
         }
     };
 
+    const submitRequest = async (event) => {
+        event.preventDefault();
+        setError('');
+        setNotice(null);
+        setCreatingRequest(true);
+        try {
+            const result = await createReliefRequest({
+                ...requestValues,
+                volunteersNeeded: Number(requestValues.volunteersNeeded),
+            });
+            setNotice(result.message);
+            setRequestValues(initialRequest);
+            await refreshDashboard();
+        } catch (requestError) {
+            setError(requestError.message);
+        } finally {
+            setCreatingRequest(false);
+        }
+    };
+
+    const closeRequest = async (reliefRequest) => {
+        setError('');
+        setNotice(null);
+        setBusyRequestId(reliefRequest.id);
+        try {
+            const result = await closeReliefRequest(reliefRequest.id);
+            setNotice(result.message);
+            setAssignments((current) => Object.fromEntries(
+                Object.entries(current).filter(([, requestId]) => requestId !== reliefRequest.id),
+            ));
+            await refreshDashboard();
+        } catch (requestError) {
+            setError(requestError.message);
+        } finally {
+            setBusyRequestId('');
+        }
+    };
+
     const metrics = dashboard?.metrics;
 
     return <main className="container app-main admin-main">
@@ -51,6 +95,34 @@ const AdminPage = () => {
             <Metric label="Approved volunteers" value={metrics?.approvedVolunteers} />
             <Metric label="Deployed volunteers" value={metrics?.deployedVolunteers} />
             <Metric label="Active requests" value={metrics?.activeRequests} />
+        </section>
+
+        <section className="admin-requests-section mb-5">
+            <div className="section-heading admin-table-heading"><div><p className="eyebrow mb-1">LIVE OPERATIONS</p><h2>Relief requests</h2></div></div>
+            <div className="row g-4">
+                <div className="col-lg-5">
+                    <form className="request-create-form" onSubmit={submitRequest}>
+                        <h3>Create a relief request</h3>
+                        <div className="mb-3"><label className="form-label" htmlFor="request-title">Request title</label><input className="form-control" id="request-title" value={requestValues.title} onChange={(event) => setRequestValues((current) => ({ ...current, title: event.target.value }))} required /></div>
+                        <div className="mb-3"><label className="form-label" htmlFor="request-location">Location</label><input className="form-control" id="request-location" value={requestValues.location} onChange={(event) => setRequestValues((current) => ({ ...current, location: event.target.value }))} required /></div>
+                        <div className="row g-3 mb-3">
+                            <div className="col-sm-6"><label className="form-label" htmlFor="request-skill">Skill needed</label><select className="form-select" id="request-skill" value={requestValues.skillRequired} onChange={(event) => setRequestValues((current) => ({ ...current, skillRequired: event.target.value }))} required><option value="" disabled>Choose a skill</option>{skills.map((skill) => <option key={skill} value={skill}>{skill}</option>)}</select></div>
+                            <div className="col-sm-6"><label className="form-label" htmlFor="request-urgency">Urgency</label><select className="form-select" id="request-urgency" value={requestValues.urgency} onChange={(event) => setRequestValues((current) => ({ ...current, urgency: event.target.value }))}>{['High', 'Medium', 'Low'].map((urgency) => <option key={urgency} value={urgency}>{urgency}</option>)}</select></div>
+                        </div>
+                        <div className="request-create-footer"><div><label className="form-label" htmlFor="request-count">Volunteers needed</label><input className="form-control" id="request-count" type="number" min="1" step="1" value={requestValues.volunteersNeeded} onChange={(event) => setRequestValues((current) => ({ ...current, volunteersNeeded: event.target.value }))} required /></div><button className="btn btn-success" type="submit" disabled={creatingRequest}>{creatingRequest ? 'Creating...' : 'Create request'}</button></div>
+                    </form>
+                </div>
+                <div className="col-lg-7">
+                    <div className="active-request-list">
+                        {dashboard?.activeRequests.map((reliefRequest) => <article className="active-request-row" key={reliefRequest.id}>
+                            <div><span className="request-id">{reliefRequest.id}</span><h3>{reliefRequest.title}</h3><p>{reliefRequest.location} <span aria-hidden="true">·</span> {reliefRequest.skillRequired} <span aria-hidden="true">·</span> {reliefRequest.volunteersNeeded} needed</p></div>
+                            <div className="active-request-actions"><span className={`urgency urgency-${reliefRequest.urgency.toLowerCase()}`}>{reliefRequest.urgency}</span><button className="btn btn-sm btn-outline-secondary" type="button" disabled={busyRequestId === reliefRequest.id} onClick={() => closeRequest(reliefRequest)}>{busyRequestId === reliefRequest.id ? 'Closing...' : 'Close request'}</button></div>
+                        </article>)}
+                        {dashboard && dashboard.activeRequests.length === 0 && <div className="empty-state">No active requests. Create one to open a response.</div>}
+                        {!dashboard && <div className="empty-state">Loading requests...</div>}
+                    </div>
+                </div>
+            </div>
         </section>
 
         <section>
