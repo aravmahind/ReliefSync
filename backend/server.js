@@ -200,7 +200,7 @@ app.use((error, _request, response, next) => {
 
 app.get('/', (_request, response) => {
     if (existsSync(frontendEntry)) return response.sendFile(frontendEntry);
-    response.json({ message: 'ReliefSync API is running. Start the React app in the frontend folder.' });
+    response.json({ message: "ReliefSync API v2.0 is LIVE! Updated automatically via CI/CD Pipeline" });
 });
 
 app.get('/{*splat}', (request, response) => {
