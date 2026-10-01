@@ -31,7 +31,7 @@ During development, Vite serves the frontend and proxies `/api`, `/admin/volunte
 
 ## DevOps
 
-The Jenkins pipeline in `Jenkinsfile` checks out the repository, runs the Selenium Maven test suite, builds and tags a Docker image, then replaces the running application container. Images are tagged with the Jenkins build number and also tagged `latest`. The container maps host port `3000` to application port `5001` and receives a MongoDB connection string through `MONGODB_URI`.
+The Jenkins pipeline job is configured with Git SCM, so Jenkins automatically checks out the configured repository and revision for each run. The pipeline in `Jenkinsfile` then runs the Selenium Maven test suite, builds and tags a Docker image, and replaces the running application container. Images are tagged with the Jenkins build number and also tagged `latest`. The container maps host port `3000` to application port `5001` and receives a MongoDB connection string through `MONGODB_URI`. To start builds automatically after Git changes, configure the Jenkins job with a repository webhook or SCM polling trigger.
 
 The pipeline uses Windows `bat` commands. Run it on a Jenkins agent with Docker, Maven, Java, Chrome/ChromeDriver support, and a MongoDB instance available. The Selenium test opens `http://localhost:5001`, so the application must be running and reachable there when the test stage executes. The test currently checks that the page title is not null.
 
@@ -114,3 +114,15 @@ Run the Selenium suite from the repository root after starting the backend and e
 cd selenium-tests
 mvn clean test
 ```
+
+## Configure Jenkins Git SCM
+
+To configure Jenkins to load and run this pipeline from Git:
+
+1. Create a Jenkins **Pipeline** job.
+2. Under **Pipeline**, select **Pipeline script from SCM** and choose **Git**.
+3. Enter the repository URL, credentials if the repository is private, and the branch to build (for example, `*/main`).
+4. Set **Script Path** to `Jenkinsfile` and save the job.
+5. Under **Build Triggers**, enable **Poll SCM** to check for repository changes on a schedule. For example, `H/5 * * * *` checks approximately every five minutes. Alternatively, configure a webhook in your Git hosting service and enable its matching Jenkins trigger.
+
+The Jenkins agent must be a Windows machine because the pipeline uses `bat` steps. Install Git, Docker, Java, Maven, and Chrome, and make sure ChromeDriver can be provisioned by WebDriverManager. The Selenium test navigates to `http://localhost:5001`; keep the backend and its MongoDB connection available to the agent while the test stage runs. The pipeline's container deploy step also expects MongoDB at `host.docker.internal:27017` unless you change its `MONGODB_URI` value.
