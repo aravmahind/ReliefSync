@@ -116,7 +116,7 @@ mvn clean test
 ```
 
 ## Project Status
-Dashboard feature is under development.
+Dashboard feature is under development. - Emergency Dashboard.
 
 ## Configure Jenkins Git SCM
 
