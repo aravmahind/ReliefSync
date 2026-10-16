@@ -115,6 +115,9 @@ cd selenium-tests
 mvn clean test
 ```
 
+## Project Status
+Dashboard feature is under development.
+
 ## Configure Jenkins Git SCM
 
 To configure Jenkins to load and run this pipeline from Git:
