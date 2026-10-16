@@ -116,7 +116,7 @@ mvn clean test
 ```
 
 ## Project Status
-Dashboard feature is under development.
+Role-based status workflow is under development.
 
 ## Configure Jenkins Git SCM
 
