@@ -33,7 +33,7 @@ During development, Vite serves the frontend and proxies `/api`, `/admin/volunte
 
 The Jenkins pipeline job is configured with Git SCM, so Jenkins automatically checks out the configured repository and revision for each run. The pipeline in `Jenkinsfile` then runs the Selenium Maven test suite, builds and tags a Docker image, and replaces the running application container. Images are tagged with the Jenkins build number and also tagged `latest`. The container maps host port `3000` to application port `5001` and receives a MongoDB connection string through `MONGODB_URI`. To start builds automatically after Git changes, configure the Jenkins job with a repository webhook or SCM polling trigger.
 
-The pipeline uses Windows `bat` commands. Run it on a Jenkins agent with Docker, Maven, Java, Chrome/ChromeDriver support, and a MongoDB instance available. The Selenium test opens `http://localhost:5001`, so the application must be running and reachable there when the test stage executes. The test currently checks that the page title is not null.
+The pipeline uses Windows `bat` commands. Run it on a Jenkins agent with Docker, Maven, Java, Chrome/ChromeDriver support, and a MongoDB instance available. The Selenium suite opens `http://localhost:5001`, so the application and its database must be running and reachable there when the test stage executes. The suite covers request search, volunteer registration, request administration, and volunteer approval/deployment. See [the Selenium test plan](./selenium-tests/TEST-PLAN.md) for journey assertions, data isolation, execution, and screenshot behavior.
 
 The current Docker setup has two limitations to account for:
 
@@ -108,12 +108,14 @@ npm run build
 npm run lint
 ```
 
-Run the Selenium suite from the repository root after starting the backend and ensuring Chrome is available:
+Run the Selenium suite from the repository root after starting MongoDB, the backend, and ensuring Chrome is available. The default target is `http://localhost:5001`; set `RELIEFSYNC_BASE_URL` or pass `-Dreliefsync.baseUrl=...` to use another URL:
 
 ```bash
 cd selenium-tests
 mvn clean test
 ```
+
+Failed Selenium tests save browser screenshots in `selenium-tests/target/screenshots/`; Maven Surefire reports are in `selenium-tests/target/surefire-reports/`.
 
 ## Configure Jenkins Git SCM
 
