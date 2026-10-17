@@ -105,16 +105,21 @@ pipeline {
         }
 
         stage('7. Verify Deployment') {
-            steps {
-                echo 'Verifying the deployed container...'
-
-                bat 'docker ps --filter "name=^/%CONTAINER_NAME%$" --filter "status=running" --format "{{.Names}}" | findstr /x "%CONTAINER_NAME%"'
-
-                bat 'docker inspect --format="{{.Config.Image}}" %CONTAINER_NAME%'
-
-                echo 'Application URL: http://localhost:3000'
-            }
-        }
+    steps {
+        echo 'Verifying the deployed container...'
+        bat '''
+            @echo off
+            docker inspect -f "{{.State.Status}}" "%CONTAINER_NAME%" | findstr /x "running"
+            if errorlevel 1 (
+                echo ERROR: Container is not running!
+                docker ps -a
+                docker logs "%CONTAINER_NAME%"
+                exit /b 1
+            )
+            echo Container is running successfully.
+        '''
+    }
+}
     }
 
     post {
