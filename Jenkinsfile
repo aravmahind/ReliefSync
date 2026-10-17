@@ -104,22 +104,29 @@ pipeline {
             }
         }
 
-        stage('7. Verify Deployment') {
+        
+stage('7. Verify Deployment') {
     steps {
         echo 'Verifying the deployed container...'
         bat '''
             @echo off
-            docker inspect -f "{{.State.Status}}" "%CONTAINER_NAME%" | findstr /x "running"
-            if errorlevel 1 (
+            docker inspect -f "{{.State.Running}}" "%CONTAINER_NAME%" > container-status.txt
+            set /p CONTAINER_RUNNING=<container-status.txt
+
+            echo Container running status: %CONTAINER_RUNNING%
+
+            if /I "%CONTAINER_RUNNING%"=="true" (
+                echo SUCCESS: Container is running.
+            ) else (
                 echo ERROR: Container is not running!
                 docker ps -a
                 docker logs "%CONTAINER_NAME%"
                 exit /b 1
             )
-            echo Container is running successfully.
         '''
     }
 }
+
     }
 
     post {
