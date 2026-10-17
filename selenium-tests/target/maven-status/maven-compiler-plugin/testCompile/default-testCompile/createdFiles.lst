@@ -1,1 +1,7 @@
-com\reliefsync\ReliefSyncTest.class
+com\reliefsync\ReliefSyncTestSupport$VolunteerData.class
+com\reliefsync\ReliefSyncTestSupport$FailureScreenshotExtension.class
+com\reliefsync\RequestAdministrationTest.class
+com\reliefsync\ReliefSyncTestSupport.class
+com\reliefsync\PublicRequestSearchTest.class
+com\reliefsync\VolunteerDeploymentTest.class
+com\reliefsync\VolunteerRegistrationTest.class

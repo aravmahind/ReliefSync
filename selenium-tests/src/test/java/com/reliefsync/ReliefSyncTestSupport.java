@@ -139,11 +139,29 @@ abstract class ReliefSyncTestSupport {
         return wait.until(ExpectedConditions.elementToBeClickable(locator));
     }
 
-    void clickWhenVisible(WebElement element) {
+    
+void clickWhenVisible(WebElement element) {
+    ((JavascriptExecutor) driver).executeScript(
+            "arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});",
+            element
+    );
+
+    wait.until(ExpectedConditions.elementToBeClickable(element));
+
+    try {
+        element.click();
+    } catch (org.openqa.selenium.ElementClickInterceptedException e) {
+        // Reposition the element and retry after checking its visibility.
         ((JavascriptExecutor) driver).executeScript(
-                "arguments[0].scrollIntoView({block: 'center'});", element);
-        wait.until(ExpectedConditions.elementToBeClickable(element)).click();
+                "arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});",
+                element
+        );
+
+        wait.until(ExpectedConditions.elementToBeClickable(element));
+        element.click();
     }
+}
+
 
     void open(String route) {
         driver.get(BASE_URL + route);
