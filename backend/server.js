@@ -183,8 +183,8 @@ app.post('/api/register', async (request, response) => {
         assignedRequestId: null,
     });
     response.status(201).json({
-        // message: 'Registration received. Your status is Pending approval.',
-        message: 'Registration received. Your status is Approved.',
+        message: 'Registration received. Your status is Pending approval.',
+        // message: 'Registration received. Your status is Approved.',
         volunteer: serialize(volunteer),
     });
 });
