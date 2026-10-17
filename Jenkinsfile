@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -10,7 +11,7 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = 'reliefsync-app'
+        IMAGE_NAME = 'aravsm/reliefsync-app'
         CONTAINER_NAME = 'reliefsync-container'
         APP_PORT = '5001'
         HOST_PORT = '3000'
@@ -20,7 +21,7 @@ pipeline {
 
         stage('1. Checkout Code') {
             steps {
-                echo 'Checking out source code from Git repository...'
+                echo 'Checking out source code...'
                 checkout scm
             }
         }
@@ -35,9 +36,9 @@ pipeline {
             }
         }
 
-        stage('3. Build Docker Image') {
+        stage('3. Build Versioned Docker Image') {
             steps {
-                echo 'Building Docker image...'
+                echo 'Building versioned Docker image...'
 
                 bat 'docker build -t %IMAGE_NAME%:v%BUILD_NUMBER% .'
 
@@ -45,32 +46,52 @@ pipeline {
             }
         }
 
-        stage('4. Package Docker Image') {
+        stage('4. Push Image to Docker Hub') {
             steps {
-                echo 'Packaging Docker image as a TAR archive...'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKERHUB_USERNAME',
+                        passwordVariable: 'DOCKERHUB_TOKEN'
+                    )
+                ]) {
+                    bat 'echo %DOCKERHUB_TOKEN% | docker login -u %DOCKERHUB_USERNAME% --password-stdin'
+
+                    bat 'docker push %IMAGE_NAME%:v%BUILD_NUMBER%'
+
+                    bat 'docker push %IMAGE_NAME%:latest'
+
+                    bat 'docker logout'
+                }
+            }
+        }
+
+        stage('5. Package Docker Image') {
+            steps {
+                echo 'Packaging Docker image as TAR...'
 
                 bat 'docker save -o reliefsync-image.tar %IMAGE_NAME%:v%BUILD_NUMBER%'
             }
         }
 
-        stage('5. Deploy Application') {
+        stage('6. Deploy Fresh Container') {
             steps {
-                echo "Deploying ReliefSync to ${params.DEPLOY_ENV}..."
+                echo "Deploying to ${params.DEPLOY_ENV}..."
 
                 script {
-                    // Stop the old container if it exists.
+                    // Stop the previous container if it exists.
                     bat(
                         returnStatus: true,
                         script: 'docker stop %CONTAINER_NAME%'
                     )
 
-                    // Remove the old container if it exists.
+                    // Remove the previous container if it exists.
                     bat(
                         returnStatus: true,
                         script: 'docker rm %CONTAINER_NAME%'
                     )
 
-                    // Start the new application container.
+                    // Run the newly built version.
                     bat '''
                         docker run -d ^
                         -p %HOST_PORT%:%APP_PORT% ^
@@ -83,26 +104,28 @@ pipeline {
             }
         }
 
-        stage('6. Verify Deployment') {
+        stage('7. Verify Deployment') {
             steps {
-                echo 'Checking whether the application container is running...'
+                echo 'Verifying the deployed container...'
 
-                bat 'docker ps --filter "name=%CONTAINER_NAME%"'
+                bat 'docker ps --filter "name=^/%CONTAINER_NAME%$" --filter "status=running" --format "{{.Names}}" | findstr /x "%CONTAINER_NAME%"'
 
-                echo "Application URL: http://localhost:3000"
-                echo "Deployment environment: ${params.DEPLOY_ENV}"
+                bat 'docker inspect --format="{{.Config.Image}}" %CONTAINER_NAME%'
+
+                echo 'Application URL: http://localhost:3000'
             }
         }
     }
 
     post {
         success {
-            echo 'SUCCESS: Jenkins pipeline completed successfully.'
-            echo 'ReliefSync URL: http://localhost:3000'
+            echo 'SUCCESS: Build, push and deployment completed.'
+            echo 'Docker Hub: https://hub.docker.com/r/aravsm/reliefsync-app'
+            echo 'Application URL: http://localhost:3000'
         }
 
         failure {
-            echo 'FAILURE: Pipeline failed. Check the Console Output for details.'
+            echo 'FAILURE: Check Jenkins Console Output for details.'
         }
 
         always {
