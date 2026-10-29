@@ -7,8 +7,22 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:5001',
-      '/admin/volunteers': 'http://localhost:5001',
-      '/admin/requests': 'http://localhost:5001',
+      '/admin/volunteers': {
+        target: 'http://localhost:5001',
+        bypass: (req) => {
+          if (req.headers.accept?.includes('text/html')) {
+            return '/index.html';
+          }
+        },
+      },
+      '/admin/requests': {
+        target: 'http://localhost:5001',
+        bypass: (req) => {
+          if (req.headers.accept?.includes('text/html')) {
+            return '/index.html';
+          }
+        },
+      },
     },
   },
 })

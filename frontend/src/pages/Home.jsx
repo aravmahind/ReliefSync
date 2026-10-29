@@ -1,62 +1,92 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getSummary } from '../api';
+import { useAuth } from '../context/AuthContext';
 
-const Home = () => {
+export default function Home() {
+    const { user } = useAuth();
     const [summary, setSummary] = useState(null);
     const [error, setError] = useState('');
 
     useEffect(() => {
         getSummary()
             .then(setSummary)
-            .catch((requestError) => setError(requestError.message));
+            .catch((err) => setError(err.message));
     }, []);
 
     const metrics = summary?.metrics;
 
     return (
-        <main className="container app-main">
-            <section className="page-heading">
-                <div>
-                    <p className="eyebrow mb-2">DISASTER RESPONSE NETWORK</p>
-                    <h1>Response overview</h1>
-                    <p className="text-secondary mb-0">A live view of volunteers and active community needs.</p>
+        <div className="content-wrapper">
+            <div className="page-header">
+                <div className="page-header-row">
+                    <div>
+                        <span className="badge-label">{user ? 'Volunteer Portal' : 'Community Response'}</span>
+                        <h1>Response overview</h1>
+                        <p>{user ? `Welcome back, ${user.name}. Here's what's happening across the disaster response network.` : "Live overview of current relief operations, requests, and volunteer deployments."}</p>
+                    </div>
+                    <Link className="btn btn-primary" to="/volunteer/register">
+                        Register your skills →
+                    </Link>
                 </div>
-                <Link className="btn btn-success" to="/register">Register as a volunteer <span aria-hidden="true">&rarr;</span></Link>
-            </section>
+            </div>
 
-            {error && <div className="alert alert-warning" role="alert">{error}. Start the backend with <code>npm run dev</code> in the backend folder.</div>}
+            {error && <div className="alert alert-warning" role="alert">{error}</div>}
 
-            <section className="row g-3 mb-5" aria-label="Platform summary">
-                <Metric label="Registered volunteers" value={metrics?.volunteers} />
-                <Metric label="Awaiting approval" value={metrics?.pending} />
-                <Metric label="Open requests" value={metrics?.openRequests} />
-                <Metric label="Deployed" value={metrics?.deployed} />
-            </section>
+            <div className="metrics-grid">
+                <div className="metric-card">
+                    <div className="metric-label">Registered Volunteers</div>
+                    <div className="metric-value">{metrics?.volunteers ?? '—'}</div>
+                </div>
+                <div className="metric-card">
+                    <div className="metric-label">Awaiting Approval</div>
+                    <div className="metric-value">{metrics?.pending ?? '—'}</div>
+                </div>
+                <div className="metric-card">
+                    <div className="metric-label">Open Requests</div>
+                    <div className="metric-value">{metrics?.openRequests ?? '—'}</div>
+                </div>
+                <div className="metric-card">
+                    <div className="metric-label">Deployed</div>
+                    <div className="metric-value">{metrics?.deployed ?? '—'}</div>
+                </div>
+            </div>
 
-            <section>
-                <div className="section-heading">
-                    <div><p className="eyebrow mb-1">NEEDS RIGHT NOW</p><h2>Open relief requests</h2></div>
-                    <Link className="text-link" to="/requests">View all requests <span aria-hidden="true">&rarr;</span></Link>
+            <div className="section">
+                <div className="section-title">
+                    <div>
+                        <span className="badge-label">Active Needs</span>
+                        <h2>Open relief requests</h2>
+                    </div>
+                    <Link className="btn btn-ghost btn-sm" to="/volunteer/requests">View all →</Link>
                 </div>
                 <RequestList requests={summary?.recentRequests || []} loading={!summary && !error} />
-            </section>
-        </main>
+            </div>
+        </div>
     );
-}
-
-function Metric({ label, value }) {
-    return <div className="col-6 col-lg-3"><div className="metric"><span>{label}</span><strong>{value ?? '—'}</strong></div></div>;
 }
 
 function RequestList({ requests, loading }) {
     if (loading) return <div className="empty-state">Loading active requests...</div>;
     if (!requests.length) return <div className="empty-state">There are no open requests right now.</div>;
 
-    return <div className="request-list">{requests.map((request) => <article className="request-row" key={request.id}>
-        <div><span className="request-id">{request.id}</span><h3>{request.title}</h3><p>{request.location} <span aria-hidden="true">·</span> {request.skillRequired}</p></div>
-        <div className="request-meta"><span className={`urgency urgency-${request.urgency.toLowerCase()}`}>{request.urgency} urgency</span><p>{request.volunteersNeeded} volunteers needed</p></div>
-    </article>)}</div>;
+    return (
+        <div className="list-card">
+            {requests.map((req) => (
+                <article className="list-item request-row" key={req.id}>
+                    <div>
+                        <span className="list-item-id request-id">{req.id}</span>
+                        <h3>{req.title}</h3>
+                        <p>{req.location} · {req.skillRequired}</p>
+                    </div>
+                    <div className="list-item-meta">
+                        <span className={`badge badge-${req.urgency.toLowerCase()}`}>
+                            {req.urgency} urgency
+                        </span>
+                        <p>{req.volunteersNeeded} volunteers needed</p>
+                    </div>
+                </article>
+            ))}
+        </div>
+    );
 }
-
-export default Home;

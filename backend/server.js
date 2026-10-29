@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { connectDatabase } from './config/database.js';
 import ReliefRequest, { reliefSkills, urgencyLevels } from './models/ReliefRequest.js';
 import Volunteer, { volunteerSkills } from './models/Volunteer.js';
+import User from './models/User.js';
+import { generateToken, authenticateToken, requireRole } from './middlewares/auth.js';
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -189,6 +191,62 @@ app.post('/api/register', async (request, response) => {
     });
 });
 
+app.post('/api/auth/signup', async (request, response) => {
+    const { name, email, password, role } = request.body || {};
+    if (!hasText(name) || !hasText(email) || !hasText(password)) {
+        return response.status(400).json({ error: 'Name, email, and password are required.' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return response.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+    if (password.length < 6) {
+        return response.status(400).json({ error: 'Password must be at least 6 characters.' });
+    }
+    const validRole = role === 'admin' ? 'admin' : 'volunteer';
+
+    const existingUser = await User.findOne({ email: email.trim().toLowerCase() });
+    if (existingUser) {
+        return response.status(409).json({ error: 'An account with this email already exists.' });
+    }
+
+    const user = await User.create({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        role: validRole,
+    });
+
+    const token = generateToken(user);
+    response.status(201).json({
+        message: 'Account created successfully.',
+        token,
+        user: { name: user.name, email: user.email, role: user.role },
+    });
+});
+
+app.post('/api/auth/login', async (request, response) => {
+    const { email, password } = request.body || {};
+    if (!hasText(email) || !hasText(password)) {
+        return response.status(400).json({ error: 'Email and password are required.' });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user || !(await user.comparePassword(password))) {
+        return response.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    const token = generateToken(user);
+    response.json({
+        message: 'Login successful.',
+        token,
+        user: { name: user.name, email: user.email, role: user.role },
+    });
+});
+
+app.get('/api/auth/me', authenticateToken, (request, response) => {
+    response.json({ user: request.user });
+});
+
 app.use((error, _request, response, next) => {
     if (response.headersSent) return next(error);
     if (error.code === 11000) return response.status(409).json({ error: 'A volunteer with that email is already registered.' });
@@ -205,7 +263,7 @@ app.get('/', (_request, response) => {
 });
 
 app.get('/{*splat}', (request, response) => {
-    if (existsSync(frontendEntry) && !request.path.startsWith('/api/') && !request.path.startsWith('/admin/')) {
+    if (existsSync(frontendEntry) && !request.path.startsWith('/api/')) {
         return response.sendFile(frontendEntry);
     }
     response.status(404).json({ error: 'Route not found' });

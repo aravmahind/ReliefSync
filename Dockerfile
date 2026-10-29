@@ -1,20 +1,20 @@
-# Base image
-FROM node:20-alpine
-
-# Working directory set kara
-WORKDIR /app
-
-# Backend folder madhun package.json copy kara
-COPY backend/package*.json ./
-
-# Dependencies install kara
+# Stage 1: Build React Frontend
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
 RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
-# Backend cha baaki complete code copy kara
+# Stage 2: Express Backend Runtime
+FROM node:20-alpine
+WORKDIR /app/backend
+COPY backend/package*.json ./
+RUN npm install
 COPY backend/ ./
 
-# Application port expose kara
-EXPOSE 5001
+# Copy built frontend dist so backend can serve it at ../frontend/dist
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
-# App start command
+EXPOSE 5001
 CMD ["npm", "start"]
