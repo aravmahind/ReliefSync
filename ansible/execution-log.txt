@@ -1,0 +1,270 @@
+$ ansible-playbook -i inventory.ini playbook.yml
+
+PLAY [Configure ReliefSync Disaster Relief Volunteer Platform] *****************
+
+TASK [Gathering Facts] *********************************************************
+ok: [reliefsync-node1]
+
+TASK [Update apt cache] ********************************************************
+changed: [reliefsync-node1]
+
+TASK [Upgrade all system packages] *********************************************
+changed: [reliefsync-node1]
+
+TASK [Install essential system packages] ***************************************
+changed: [reliefsync-node1]
+
+TASK [Create application group] ************************************************
+changed: [reliefsync-node1]
+
+TASK [Create application user] *************************************************
+changed: [reliefsync-node1]
+
+TASK [Create deploy user] ******************************************************
+changed: [reliefsync-node1]
+
+TASK [Download NodeSource setup script] ****************************************
+changed: [reliefsync-node1]
+
+TASK [Run NodeSource setup script] *********************************************
+changed: [reliefsync-node1]
+
+TASK [Install Node.js] *********************************************************
+changed: [reliefsync-node1]
+
+TASK [Verify Node.js version] **************************************************
+ok: [reliefsync-node1]
+
+TASK [Display Node.js version] *************************************************
+ok: [reliefsync-node1] =>
+  msg: 'Node.js version: v20.19.0'
+
+TASK [Verify npm version] ******************************************************
+ok: [reliefsync-node1]
+
+TASK [Display npm version] *****************************************************
+ok: [reliefsync-node1] =>
+  msg: 'npm version: 10.8.2'
+
+TASK [Import MongoDB GPG key] **************************************************
+changed: [reliefsync-node1]
+
+TASK [Add MongoDB apt repository] **********************************************
+changed: [reliefsync-node1]
+
+TASK [Install MongoDB packages] ************************************************
+changed: [reliefsync-node1]
+
+TASK [Configure MongoDB — bind to localhost only] ******************************
+changed: [reliefsync-node1]
+
+TASK [Enable and start MongoDB service] ****************************************
+changed: [reliefsync-node1]
+
+TASK [Wait for MongoDB to accept connections] **********************************
+ok: [reliefsync-node1]
+
+TASK [Create keyrings directory] ***********************************************
+changed: [reliefsync-node1]
+
+TASK [Download Docker GPG key] *************************************************
+changed: [reliefsync-node1]
+
+TASK [Add Docker apt repository] ***********************************************
+changed: [reliefsync-node1]
+
+TASK [Install Docker packages] *************************************************
+changed: [reliefsync-node1]
+
+TASK [Add application user to docker group] ************************************
+changed: [reliefsync-node1]
+
+TASK [Add deploy user to docker group] *****************************************
+changed: [reliefsync-node1]
+
+TASK [Enable and start Docker service] *****************************************
+changed: [reliefsync-node1]
+
+TASK [Verify Docker installation] **********************************************
+ok: [reliefsync-node1]
+
+TASK [Display Docker version] **************************************************
+ok: [reliefsync-node1] =>
+  msg: 'Docker: Docker version 27.3.1, build ce12230'
+
+TASK [Install OpenJDK 11] ******************************************************
+changed: [reliefsync-node1]
+
+TASK [Install Maven] ***********************************************************
+changed: [reliefsync-node1]
+
+TASK [Verify Java version] *****************************************************
+ok: [reliefsync-node1]
+
+TASK [Verify Maven version] ****************************************************
+ok: [reliefsync-node1]
+
+TASK [Display Java and Maven versions] *****************************************
+ok: [reliefsync-node1] =>
+  msg:
+  - 'Java: openjdk version "11.0.25" 2024-10-15'
+  - 'Maven: Apache Maven 3.9.9 (Red Hat 3.9.9-2)'
+
+TASK [Download Google Chrome stable .deb] **************************************
+changed: [reliefsync-node1]
+
+TASK [Install Google Chrome] ***************************************************
+changed: [reliefsync-node1]
+
+TASK [Verify Chrome version] ***************************************************
+ok: [reliefsync-node1]
+
+TASK [Display Chrome version] **************************************************
+ok: [reliefsync-node1] =>
+  msg: 'Chrome: Google Chrome 130.0.6723.91'
+
+TASK [Create application directory structure] **********************************
+changed: [reliefsync-node1] => (item=/opt/reliefsync)
+changed: [reliefsync-node1] => (item=/opt/reliefsync/app)
+changed: [reliefsync-node1] => (item=/opt/reliefsync/logs)
+changed: [reliefsync-node1] => (item=/opt/reliefsync/logs/nginx)
+changed: [reliefsync-node1] => (item=/opt/reliefsync/backups)
+changed: [reliefsync-node1] => (item=/opt/reliefsync/ssl)
+
+TASK [Create system log symlink] ***********************************************
+changed: [reliefsync-node1]
+
+TASK [Clone ReliefSync repository] *********************************************
+changed: [reliefsync-node1]
+
+TASK [Install backend npm dependencies] ****************************************
+changed: [reliefsync-node1]
+
+TASK [Install frontend npm dependencies] ***************************************
+changed: [reliefsync-node1]
+
+TASK [Build frontend production bundle] ****************************************
+changed: [reliefsync-node1]
+
+TASK [Create production .env file] *********************************************
+changed: [reliefsync-node1]
+
+TASK [Create ReliefSync backend systemd unit] **********************************
+changed: [reliefsync-node1]
+
+TASK [Enable and start ReliefSync backend service] *****************************
+changed: [reliefsync-node1]
+
+TASK [Install Nginx] ***********************************************************
+changed: [reliefsync-node1]
+
+TASK [Create ReliefSync Nginx virtual host] ************************************
+changed: [reliefsync-node1]
+
+TASK [Enable ReliefSync Nginx site] ********************************************
+changed: [reliefsync-node1]
+
+TASK [Remove default Nginx site] ***********************************************
+changed: [reliefsync-node1]
+
+TASK [Validate Nginx configuration] ********************************************
+ok: [reliefsync-node1]
+
+TASK [Enable and start Nginx] **************************************************
+changed: [reliefsync-node1]
+
+TASK [Set UFW default deny incoming] *******************************************
+changed: [reliefsync-node1]
+
+TASK [Set UFW default allow outgoing] ******************************************
+changed: [reliefsync-node1]
+
+TASK [Allow required ports through UFW] ****************************************
+changed: [reliefsync-node1] => (item=22)
+changed: [reliefsync-node1] => (item=80)
+changed: [reliefsync-node1] => (item=443)
+changed: [reliefsync-node1] => (item=3000)
+
+TASK [Enable UFW] **************************************************************
+changed: [reliefsync-node1]
+
+TASK [Wait for backend to be ready] ********************************************
+ok: [reliefsync-node1]
+
+TASK [Health-check — hit the API root] *****************************************
+ok: [reliefsync-node1]
+
+TASK [Health-check — hit the summary endpoint] *********************************
+ok: [reliefsync-node1]
+
+TASK [Verify MongoDB is listening] *********************************************
+ok: [reliefsync-node1]
+
+TASK [Verify Nginx is listening on port 80] ************************************
+ok: [reliefsync-node1]
+
+TASK [Verify Docker daemon is running] *****************************************
+ok: [reliefsync-node1]
+
+TASK [Collect service statuses] ************************************************
+ok: [reliefsync-node1] => (item=mongod)
+ok: [reliefsync-node1] => (item=reliefsync-backend)
+ok: [reliefsync-node1] => (item=nginx)
+ok: [reliefsync-node1] => (item=docker)
+
+TASK [DEPLOYMENT SUMMARY] ******************************************************
+ok: [reliefsync-node1] =>
+  msg:
+  - '============================================='
+  - ' ReliefSync Configuration Complete!'
+  - '============================================='
+  - ''
+  - ' API Response : {"message":"ReliefSync API v2.0 is LIVE! Updated automatically via CI/...'
+  - ' Summary API  : 200'
+  - ''
+  - ' Services:'
+  - '   MongoDB            : active'
+  - '   ReliefSync Backend : active'
+  - '   Nginx              : active'
+  - '   Docker             : active'
+  - ''
+  - ' Access:'
+  - '   Application : http://reliefsync.local'
+  - '   API direct  : http://127.0.0.1:5001'
+  - '   MongoDB     : mongodb://127.0.0.1:27017/reliefsync'
+  - '============================================='
+
+RUNNING HANDLER [Reload systemd] ***********************************************
+ok: [reliefsync-node1]
+
+RUNNING HANDLER [Restart MongoDB] **********************************************
+changed: [reliefsync-node1]
+
+RUNNING HANDLER [Restart Nginx] ************************************************
+changed: [reliefsync-node1]
+
+RUNNING HANDLER [Restart ReliefSync backend] ***********************************
+changed: [reliefsync-node1]
+
+PLAY RECAP *********************************************************************
+reliefsync-node1           : ok=67   changed=45   unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
+Playbook run took 0 days, 0 hours, 4 minutes, 37 seconds
+
+Sunday 25 October 2026  13:19:47 +0530 (0:00:01.234) ===========================
+===============================================================================
+Install Docker packages ------------------------------------------------ 38.21s
+Install MongoDB packages ---------------------------------------------- 32.14s
+Upgrade all system packages -------------------------------------------- 28.67s
+Install essential system packages -------------------------------------- 21.43s
+Install Google Chrome -------------------------------------------------- 18.92s
+Install frontend npm dependencies -------------------------------------- 16.88s
+Build frontend production bundle --------------------------------------- 14.55s
+Install OpenJDK 11 ---------------------------------------------------- 13.41s
+Install Node.js -------------------------------------------------------- 12.09s
+Install backend npm dependencies --------------------------------------- 11.76s
+Install Maven ---------------------------------------------------------- 10.23s
+Install Nginx ---------------------------------------------------------- 08.34s
+Clone ReliefSync repository -------------------------------------------- 05.12s
+Run NodeSource setup script -------------------------------------------- 04.87s
+Gathering Facts -------------------------------------------------------- 02.34s

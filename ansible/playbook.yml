@@ -1,0 +1,710 @@
+---
+# =============================================================================
+# ReliefSync — Ansible Playbook
+# =============================================================================
+# Configures a bare Ubuntu 22.04 server into a fully-operational host for the
+# Disaster Relief Volunteer Platform (ReliefSync).
+#
+# Provisions:
+#   - System packages and security updates
+#   - Node.js 20.x LTS runtime
+#   - MongoDB 7.0 Community Server
+#   - Docker CE and Docker Compose plugin
+#   - Java 11 + Maven (Selenium test support)
+#   - Google Chrome (headless Selenium)
+#   - Nginx reverse proxy
+#   - Application user, directories, and systemd service
+#   - UFW firewall rules
+#
+# Usage:
+#   ansible-playbook -i inventory.ini playbook.yml
+#   ansible-playbook -i inventory.ini playbook.yml --check   # dry-run
+#   ansible-playbook -i inventory.ini playbook.yml --tags "app"  # selective
+# =============================================================================
+
+- name: Configure ReliefSync Disaster Relief Volunteer Platform
+  hosts: reliefsync_servers
+  become: true
+  gather_facts: true
+
+  vars:
+    app_name: reliefsync
+    app_user: reliefsync
+    app_group: reliefsync
+    app_uid: 1500
+    app_home: /opt/reliefsync
+    app_repo: "https://github.com/aravsm/ReliefSync.git"
+    app_branch: main
+    app_port: 5001
+    deploy_env: production
+    nodejs_version: "20"
+    mongodb_version: "7.0"
+    mongodb_port: 27017
+    mongodb_bind_ip: "127.0.0.1"
+    mongodb_db_name: reliefsync
+    nginx_server_name: reliefsync.local
+    firewall_allowed_ports:
+      - "22"
+      - "80"
+      - "443"
+      - "3000"
+
+  # =========================================================================
+  # HANDLERS
+  # =========================================================================
+  handlers:
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart MongoDB
+      ansible.builtin.systemd:
+        name: mongod
+        state: restarted
+        enabled: true
+
+    - name: Restart Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: restarted
+        enabled: true
+
+    - name: Restart ReliefSync backend
+      ansible.builtin.systemd:
+        name: reliefsync-backend
+        state: restarted
+        enabled: true
+
+    - name: Restart Docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
+        enabled: true
+
+  # =========================================================================
+  # TASKS
+  # =========================================================================
+  tasks:
+
+    # -----------------------------------------------------------------------
+    # PHASE 1 — System Preparation
+    # -----------------------------------------------------------------------
+    - name: "PHASE 1 — SYSTEM PREPARATION"
+      tags: [system]
+      block:
+
+        - name: Update apt cache
+          ansible.builtin.apt:
+            update_cache: true
+            cache_valid_time: 3600
+
+        - name: Upgrade all system packages
+          ansible.builtin.apt:
+            upgrade: dist
+            autoremove: true
+
+        - name: Install essential system packages
+          ansible.builtin.apt:
+            name:
+              - curl
+              - wget
+              - git
+              - build-essential
+              - ca-certificates
+              - gnupg
+              - lsb-release
+              - software-properties-common
+              - apt-transport-https
+              - python3-pip
+              - unzip
+              - acl
+              - ufw
+            state: present
+
+    # -----------------------------------------------------------------------
+    # PHASE 2 — Users and Groups
+    # -----------------------------------------------------------------------
+    - name: "PHASE 2 — USERS AND GROUPS"
+      tags: [users]
+      block:
+
+        - name: Create application group
+          ansible.builtin.group:
+            name: "{{ app_group }}"
+            state: present
+
+        - name: Create application user
+          ansible.builtin.user:
+            name: "{{ app_user }}"
+            uid: "{{ app_uid }}"
+            group: "{{ app_group }}"
+            home: "{{ app_home }}"
+            shell: /bin/bash
+            system: false
+            create_home: true
+            comment: "ReliefSync application service account"
+
+        - name: Create deploy user
+          ansible.builtin.user:
+            name: deploy
+            uid: 1501
+            groups:
+              - deploy
+              - sudo
+            append: true
+            shell: /bin/bash
+            create_home: true
+            comment: "Deployment and Ansible target user"
+
+    # -----------------------------------------------------------------------
+    # PHASE 3 — Node.js 20.x LTS
+    # -----------------------------------------------------------------------
+    - name: "PHASE 3 — NODE.JS INSTALLATION"
+      tags: [nodejs]
+      block:
+
+        - name: Download NodeSource setup script
+          ansible.builtin.get_url:
+            url: "https://deb.nodesource.com/setup_{{ nodejs_version }}.x"
+            dest: /tmp/nodesource_setup.sh
+            mode: "0755"
+
+        - name: Run NodeSource setup script
+          ansible.builtin.command:
+            cmd: bash /tmp/nodesource_setup.sh
+          changed_when: true
+
+        - name: Install Node.js
+          ansible.builtin.apt:
+            name: nodejs
+            state: present
+            update_cache: true
+
+        - name: Verify Node.js version
+          ansible.builtin.command:
+            cmd: node --version
+          register: node_version_output
+          changed_when: false
+
+        - name: Display Node.js version
+          ansible.builtin.debug:
+            msg: "Node.js version: {{ node_version_output.stdout }}"
+
+        - name: Verify npm version
+          ansible.builtin.command:
+            cmd: npm --version
+          register: npm_version_output
+          changed_when: false
+
+        - name: Display npm version
+          ansible.builtin.debug:
+            msg: "npm version: {{ npm_version_output.stdout }}"
+
+    # -----------------------------------------------------------------------
+    # PHASE 4 — MongoDB 7.0 Community Server
+    # -----------------------------------------------------------------------
+    - name: "PHASE 4 — MONGODB INSTALLATION"
+      tags: [mongodb]
+      block:
+
+        - name: Import MongoDB GPG key
+          ansible.builtin.apt_key:
+            url: "https://pgp.mongodb.com/server-{{ mongodb_version }}.asc"
+            state: present
+
+        - name: Add MongoDB apt repository
+          ansible.builtin.apt_repository:
+            repo: >-
+              deb [ arch=amd64,arm64 ]
+              https://repo.mongodb.org/apt/ubuntu
+              {{ ansible_distribution_release }}/mongodb-org/{{ mongodb_version }}
+              multiverse
+            filename: mongodb-org-{{ mongodb_version }}
+            state: present
+
+        - name: Install MongoDB packages
+          ansible.builtin.apt:
+            name:
+              - mongodb-org
+              - mongodb-org-server
+              - mongodb-org-shell
+              - mongodb-org-tools
+            state: present
+            update_cache: true
+
+        - name: Configure MongoDB — bind to localhost only
+          ansible.builtin.lineinfile:
+            path: /etc/mongod.conf
+            regexp: '^\s*bindIp:'
+            line: "  bindIp: {{ mongodb_bind_ip }}"
+            backup: true
+          notify: Restart MongoDB
+
+        - name: Enable and start MongoDB service
+          ansible.builtin.systemd:
+            name: mongod
+            state: started
+            enabled: true
+
+        - name: Wait for MongoDB to accept connections
+          ansible.builtin.wait_for:
+            port: "{{ mongodb_port }}"
+            host: "{{ mongodb_bind_ip }}"
+            delay: 3
+            timeout: 30
+
+    # -----------------------------------------------------------------------
+    # PHASE 5 — Docker CE
+    # -----------------------------------------------------------------------
+    - name: "PHASE 5 — DOCKER INSTALLATION"
+      tags: [docker]
+      block:
+
+        - name: Create keyrings directory
+          ansible.builtin.file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: "0755"
+
+        - name: Download Docker GPG key
+          ansible.builtin.get_url:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            dest: /etc/apt/keyrings/docker.asc
+            mode: "0644"
+
+        - name: Add Docker apt repository
+          ansible.builtin.apt_repository:
+            repo: >-
+              deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc]
+              https://download.docker.com/linux/ubuntu
+              {{ ansible_distribution_release }} stable
+            filename: docker
+            state: present
+
+        - name: Install Docker packages
+          ansible.builtin.apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-buildx-plugin
+              - docker-compose-plugin
+            state: present
+            update_cache: true
+
+        - name: Add application user to docker group
+          ansible.builtin.user:
+            name: "{{ app_user }}"
+            groups: docker
+            append: true
+
+        - name: Add deploy user to docker group
+          ansible.builtin.user:
+            name: deploy
+            groups: docker
+            append: true
+
+        - name: Enable and start Docker service
+          ansible.builtin.systemd:
+            name: docker
+            state: started
+            enabled: true
+
+        - name: Verify Docker installation
+          ansible.builtin.command:
+            cmd: docker --version
+          register: docker_version_output
+          changed_when: false
+
+        - name: Display Docker version
+          ansible.builtin.debug:
+            msg: "Docker: {{ docker_version_output.stdout }}"
+
+    # -----------------------------------------------------------------------
+    # PHASE 6 — Java 11 and Maven (Selenium testing)
+    # -----------------------------------------------------------------------
+    - name: "PHASE 6 — JAVA AND MAVEN INSTALLATION"
+      tags: [java, selenium]
+      block:
+
+        - name: Install OpenJDK 11
+          ansible.builtin.apt:
+            name: openjdk-11-jdk
+            state: present
+
+        - name: Install Maven
+          ansible.builtin.apt:
+            name: maven
+            state: present
+
+        - name: Verify Java version
+          ansible.builtin.command:
+            cmd: java -version
+          register: java_version_output
+          changed_when: false
+
+        - name: Verify Maven version
+          ansible.builtin.command:
+            cmd: mvn --version
+          register: maven_version_output
+          changed_when: false
+
+        - name: Display Java and Maven versions
+          ansible.builtin.debug:
+            msg:
+              - "Java: {{ java_version_output.stderr_lines[0] }}"
+              - "Maven: {{ maven_version_output.stdout_lines[0] }}"
+
+    # -----------------------------------------------------------------------
+    # PHASE 7 — Google Chrome (Selenium headless)
+    # -----------------------------------------------------------------------
+    - name: "PHASE 7 — GOOGLE CHROME INSTALLATION"
+      tags: [chrome, selenium]
+      block:
+
+        - name: Download Google Chrome stable .deb
+          ansible.builtin.get_url:
+            url: https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            dest: /tmp/google-chrome-stable.deb
+            mode: "0644"
+
+        - name: Install Google Chrome
+          ansible.builtin.apt:
+            deb: /tmp/google-chrome-stable.deb
+            state: present
+
+        - name: Verify Chrome version
+          ansible.builtin.command:
+            cmd: google-chrome --version
+          register: chrome_version_output
+          changed_when: false
+
+        - name: Display Chrome version
+          ansible.builtin.debug:
+            msg: "Chrome: {{ chrome_version_output.stdout }}"
+
+    # -----------------------------------------------------------------------
+    # PHASE 8 — Application Directories
+    # -----------------------------------------------------------------------
+    - name: "PHASE 8 — APPLICATION DIRECTORIES"
+      tags: [app, dirs]
+      block:
+
+        - name: Create application directory structure
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+            owner: "{{ app_user }}"
+            group: "{{ app_group }}"
+            mode: "0755"
+          loop:
+            - "{{ app_home }}"
+            - "{{ app_home }}/app"
+            - "{{ app_home }}/logs"
+            - "{{ app_home }}/logs/nginx"
+            - "{{ app_home }}/backups"
+            - "{{ app_home }}/ssl"
+
+        - name: Create system log symlink
+          ansible.builtin.file:
+            src: "{{ app_home }}/logs"
+            dest: /var/log/reliefsync
+            state: link
+
+    # -----------------------------------------------------------------------
+    # PHASE 9 — Application Deployment
+    # -----------------------------------------------------------------------
+    - name: "PHASE 9 — APPLICATION DEPLOYMENT"
+      tags: [app, deploy]
+      block:
+
+        - name: Clone ReliefSync repository
+          ansible.builtin.git:
+            repo: "{{ app_repo }}"
+            dest: "{{ app_home }}/app"
+            version: "{{ app_branch }}"
+            force: true
+          become_user: "{{ app_user }}"
+
+        - name: Install backend npm dependencies
+          community.general.npm:
+            path: "{{ app_home }}/app/backend"
+            production: true
+          become_user: "{{ app_user }}"
+
+        - name: Install frontend npm dependencies
+          community.general.npm:
+            path: "{{ app_home }}/app/frontend"
+          become_user: "{{ app_user }}"
+
+        - name: Build frontend production bundle
+          ansible.builtin.command:
+            cmd: npm run build
+            chdir: "{{ app_home }}/app/frontend"
+          become_user: "{{ app_user }}"
+          changed_when: true
+
+        - name: Create production .env file
+          ansible.builtin.copy:
+            dest: "{{ app_home }}/.env"
+            owner: "{{ app_user }}"
+            group: "{{ app_group }}"
+            mode: "0600"
+            content: |
+              # ReliefSync production environment — managed by Ansible
+              PORT={{ app_port }}
+              MONGODB_URI=mongodb://{{ mongodb_bind_ip }}:{{ mongodb_port }}/{{ mongodb_db_name }}
+              NODE_ENV=production
+              DEPLOY_ENV={{ deploy_env }}
+          notify: Restart ReliefSync backend
+
+    # -----------------------------------------------------------------------
+    # PHASE 10 — Systemd Service
+    # -----------------------------------------------------------------------
+    - name: "PHASE 10 — SYSTEMD SERVICE"
+      tags: [app, service]
+      block:
+
+        - name: Create ReliefSync backend systemd unit
+          ansible.builtin.copy:
+            dest: /etc/systemd/system/reliefsync-backend.service
+            mode: "0644"
+            content: |
+              # ReliefSync Backend Service — managed by Ansible
+              [Unit]
+              Description=ReliefSync Disaster Relief Volunteer Platform — Express API
+              Documentation=https://github.com/aravsm/ReliefSync
+              After=network-online.target mongod.service
+              Requires=mongod.service
+              Wants=network-online.target
+
+              [Service]
+              Type=simple
+              User={{ app_user }}
+              Group={{ app_group }}
+              WorkingDirectory={{ app_home }}/app/backend
+              EnvironmentFile={{ app_home }}/.env
+              ExecStart=/usr/bin/node server.js
+              Restart=on-failure
+              RestartSec=10
+              StandardOutput=append:{{ app_home }}/logs/backend.log
+              StandardError=append:{{ app_home }}/logs/backend.log
+
+              # Security hardening
+              NoNewPrivileges=true
+              ProtectSystem=strict
+              ProtectHome=true
+              ReadWritePaths={{ app_home }}/logs
+              PrivateTmp=true
+
+              [Install]
+              WantedBy=multi-user.target
+          notify:
+            - Reload systemd
+            - Restart ReliefSync backend
+
+        - name: Enable and start ReliefSync backend service
+          ansible.builtin.systemd:
+            name: reliefsync-backend
+            state: started
+            enabled: true
+            daemon_reload: true
+
+    # -----------------------------------------------------------------------
+    # PHASE 11 — Nginx Reverse Proxy
+    # -----------------------------------------------------------------------
+    - name: "PHASE 11 — NGINX REVERSE PROXY"
+      tags: [nginx]
+      block:
+
+        - name: Install Nginx
+          ansible.builtin.apt:
+            name: nginx
+            state: present
+
+        - name: Create ReliefSync Nginx virtual host
+          ansible.builtin.copy:
+            dest: /etc/nginx/sites-available/reliefsync.conf
+            mode: "0644"
+            content: |
+              # ReliefSync Nginx reverse proxy — managed by Ansible
+              upstream reliefsync_backend {
+                  server 127.0.0.1:{{ app_port }};
+                  keepalive 16;
+              }
+
+              server {
+                  listen 80;
+                  server_name {{ nginx_server_name }};
+
+                  access_log {{ app_home }}/logs/nginx/access.log;
+                  error_log  {{ app_home }}/logs/nginx/error.log;
+
+                  # Serve the pre-built React frontend
+                  root {{ app_home }}/app/frontend/dist;
+                  index index.html;
+
+                  # API and admin routes → Express backend
+                  location /api/ {
+                      proxy_pass         http://reliefsync_backend;
+                      proxy_http_version 1.1;
+                      proxy_set_header   Host              $host;
+                      proxy_set_header   X-Real-IP         $remote_addr;
+                      proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+                      proxy_set_header   X-Forwarded-Proto $scheme;
+                      proxy_set_header   Connection        "";
+                  }
+
+                  location /admin/ {
+                      proxy_pass         http://reliefsync_backend;
+                      proxy_http_version 1.1;
+                      proxy_set_header   Host              $host;
+                      proxy_set_header   X-Real-IP         $remote_addr;
+                      proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+                      proxy_set_header   X-Forwarded-Proto $scheme;
+                      proxy_set_header   Connection        "";
+                  }
+
+                  # React SPA fallback — serve index.html for client-side routes
+                  location / {
+                      try_files $uri $uri/ /index.html;
+                  }
+
+                  # Security headers
+                  add_header X-Frame-Options        "SAMEORIGIN"       always;
+                  add_header X-Content-Type-Options  "nosniff"          always;
+                  add_header X-XSS-Protection        "1; mode=block"    always;
+                  add_header Referrer-Policy         "strict-origin-when-cross-origin" always;
+              }
+          notify: Restart Nginx
+
+        - name: Enable ReliefSync Nginx site
+          ansible.builtin.file:
+            src: /etc/nginx/sites-available/reliefsync.conf
+            dest: /etc/nginx/sites-enabled/reliefsync.conf
+            state: link
+          notify: Restart Nginx
+
+        - name: Remove default Nginx site
+          ansible.builtin.file:
+            path: /etc/nginx/sites-enabled/default
+            state: absent
+          notify: Restart Nginx
+
+        - name: Validate Nginx configuration
+          ansible.builtin.command:
+            cmd: nginx -t
+          changed_when: false
+
+        - name: Enable and start Nginx
+          ansible.builtin.systemd:
+            name: nginx
+            state: started
+            enabled: true
+
+    # -----------------------------------------------------------------------
+    # PHASE 12 — Firewall (UFW)
+    # -----------------------------------------------------------------------
+    - name: "PHASE 12 — FIREWALL CONFIGURATION"
+      tags: [firewall]
+      block:
+
+        - name: Set UFW default deny incoming
+          community.general.ufw:
+            direction: incoming
+            default: deny
+
+        - name: Set UFW default allow outgoing
+          community.general.ufw:
+            direction: outgoing
+            default: allow
+
+        - name: Allow required ports through UFW
+          community.general.ufw:
+            rule: allow
+            port: "{{ item }}"
+            proto: tcp
+          loop: "{{ firewall_allowed_ports }}"
+
+        - name: Enable UFW
+          community.general.ufw:
+            state: enabled
+
+    # -----------------------------------------------------------------------
+    # PHASE 13 — Smoke Tests and Validation
+    # -----------------------------------------------------------------------
+    - name: "PHASE 13 — SMOKE TESTS AND VALIDATION"
+      tags: [validate]
+      block:
+
+        - name: Wait for backend to be ready
+          ansible.builtin.wait_for:
+            port: "{{ app_port }}"
+            host: 127.0.0.1
+            delay: 5
+            timeout: 30
+
+        - name: Health-check — hit the API root
+          ansible.builtin.uri:
+            url: "http://127.0.0.1:{{ app_port }}/"
+            return_content: true
+            status_code: 200
+          register: api_health
+
+        - name: Health-check — hit the summary endpoint
+          ansible.builtin.uri:
+            url: "http://127.0.0.1:{{ app_port }}/api/summary"
+            return_content: true
+            status_code: 200
+          register: api_summary
+
+        - name: Verify MongoDB is listening
+          ansible.builtin.wait_for:
+            port: "{{ mongodb_port }}"
+            host: "{{ mongodb_bind_ip }}"
+            state: started
+
+        - name: Verify Nginx is listening on port 80
+          ansible.builtin.wait_for:
+            port: 80
+            host: 0.0.0.0
+            state: started
+
+        - name: Verify Docker daemon is running
+          ansible.builtin.command:
+            cmd: docker info
+          changed_when: false
+
+        - name: Collect service statuses
+          ansible.builtin.command:
+            cmd: "systemctl is-active {{ item }}"
+          loop:
+            - mongod
+            - reliefsync-backend
+            - nginx
+            - docker
+          register: service_statuses
+          changed_when: false
+
+        - name: "DEPLOYMENT SUMMARY"
+          ansible.builtin.debug:
+            msg:
+              - "============================================="
+              - " ReliefSync Configuration Complete!"
+              - "============================================="
+              - ""
+              - " API Response : {{ api_health.content | truncate(80) }}"
+              - " Summary API  : {{ api_summary.status }}"
+              - ""
+              - " Services:"
+              - "   MongoDB            : {{ service_statuses.results[0].stdout }}"
+              - "   ReliefSync Backend : {{ service_statuses.results[1].stdout }}"
+              - "   Nginx              : {{ service_statuses.results[2].stdout }}"
+              - "   Docker             : {{ service_statuses.results[3].stdout }}"
+              - ""
+              - " Access:"
+              - "   Application : http://{{ nginx_server_name }}"
+              - "   API direct  : http://127.0.0.1:{{ app_port }}"
+              - "   MongoDB     : mongodb://{{ mongodb_bind_ip }}:{{ mongodb_port }}/{{ mongodb_db_name }}"
+              - "============================================="
